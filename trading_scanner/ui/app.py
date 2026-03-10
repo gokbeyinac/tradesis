@@ -18,6 +18,16 @@ from ui.components.sentiment_panel import render_sentiment
 from ui.components.signals_panel import render_indicators, render_patterns
 from ui.theme import THEME_CSS, TREND_EMOJIS, TREND_LABELS
 
+# Forex pairs need 5 decimal places, indices need 2
+FOREX_PAIRS = {"EURUSD", "GBPUSD"}
+
+
+def _format_price(symbol: str, price: float) -> str:
+    if symbol in FOREX_PAIRS:
+        return f"{price:.5f}"
+    return f"{price:,.2f}"
+
+
 # ── Page config ──────────────────────────────────────────────────────────────
 
 st.set_page_config(
@@ -77,10 +87,8 @@ if page == "Scanner":
                 latest_pat = newest.pattern
                 latest_pat_color = "#00c853" if newest.direction == "bullish" else "#ff1744" if newest.direction == "bearish" else "#ffd740"
 
-            # Short-term momentum from last 5 candles
+            # Short-term momentum
             short_label = label
-            short_css = css_class
-            short_emoji = emoji
             if scan.indicators.rsi > 50 and scan.indicators.macd_histogram > 0:
                 if scan.trend.trend in ("weak_bearish", "strong_bearish"):
                     short_label = f"{label} (toparlanma)"
@@ -88,10 +96,12 @@ if page == "Scanner":
                 if scan.trend.trend in ("weak_bullish", "strong_bullish"):
                     short_label = f"{label} (zayiflama)"
 
+            price_str = _format_price(symbol, scan.price)
+
             st.markdown(f"""
             <div class="metric-card">
                 <div style="font-size:0.9em;color:#8b8d93;">{symbol}</div>
-                <div class="price-text">{scan.price:,.2f}</div>
+                <div class="price-text">{price_str}</div>
                 <div class="{css_class}">{emoji} {short_label}</div>
                 {"<div class='alert-badge'>⚠️ S/R yakin</div>" if alerts else ""}
                 {"<div style='color:" + latest_pat_color + ";font-size:0.85em;'>🕯️ " + latest_pat + "</div>" if latest_pat else ""}
@@ -106,9 +116,19 @@ if page == "Scanner":
 
     if selected:
         scan = scans[selected]
-        df = fetch_ohlcv(selected)
+
+        # Timeframe selector
+        tf = st.radio("Timeframe", ["H4", "H1"], horizontal=True, key="tf_select")
+
+        df = fetch_ohlcv(selected, interval=tf)
 
         if df is not None:
+            # Re-analyze if H1
+            if tf == "H1":
+                scan_tf = engine.scan_technical(selected, interval="H1")
+                if scan_tf is not None:
+                    scan = scan_tf
+
             # Chart
             render_candlestick(
                 df,
@@ -127,8 +147,9 @@ if page == "Scanner":
                 st.subheader("S/R Seviyeleri")
                 if scan.sr_levels:
                     import pandas as pd
+                    fmt = ".5f" if selected in FOREX_PAIRS else ".2f"
                     sr_data = [
-                        {"Tip": l.type, "Fiyat": l.price, "Test": l.test_count,
+                        {"Tip": l.type, "Fiyat": format(l.price, fmt), "Test": l.test_count,
                          "Guc": l.strength, "Alert": "⚠️" if l.proximity_alert else ""}
                         for l in scan.sr_levels
                     ]
@@ -138,7 +159,7 @@ if page == "Scanner":
                 st.subheader("Formasyonlar")
                 render_patterns(scan, df)
 
-            # Sentiment & Forecast (expandable)
+            # Sentiment & Forecast
             st.markdown("---")
             sent_col, fore_col = st.columns(2)
 
