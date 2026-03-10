@@ -1,5 +1,5 @@
 # Data
-tvdatafeed>=2.1.0
+tvdatafeed @ git+https://github.com/rongardF/tvdatafeed.git
 pandas>=2.2
 numpy>=2.0
 
@@ -12,17 +12,9 @@ transformers>=4.45
 torch>=2.5
 
 # Forecast
-timesfm>=2.0
 prophet>=1.1.6
 
 # UI
 streamlit>=1.40
 streamlit-lightweight-charts>=0.9
 plotly>=5.24
-
-# Validation
-pydantic>=2.9
-
-# Testing
-pytest>=8.3
-pytest-cov>=6.0
